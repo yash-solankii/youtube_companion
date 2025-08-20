@@ -14,7 +14,7 @@ def load_video(video_url):
         gr.Warning("Please enter a YouTube URL.")
         return "Enter a URL to begin.", "", None, None, None
 
-    # Reset chatbot UI to be empty. The new format requires a list of lists or None.
+    # Reset chatbot UI to be empty.
     chatbot_out = None 
     
     try:
@@ -63,8 +63,6 @@ def load_video(video_url):
             return "An unknown error occurred.", "Please check the console for details.", chatbot_out, None, None
 
 
-# --- UPDATED FOR 'MESSAGES' CHAT FORMAT ---
-
 def chat_with_video(user_message, chat_history, vector_index, qa_chain):
     print(f"\n--- chat_with_video CALLED ---")
     
@@ -88,17 +86,14 @@ def chat_with_video(user_message, chat_history, vector_index, qa_chain):
         })
         answer = result.get("answer", "Sorry, I couldn't find an answer in the video content.")
         
-        # --- THIS IS THE NEW CODE TO PRINT THE SOURCE DOCUMENTS ---
         source_documents = result.get("source_documents", [])
         if source_documents:
             print("\n--- Retrieved Source Documents for Q&A ---")
             for i, doc in enumerate(source_documents):
-                # Print the chunk ID from metadata and a snippet of the content
                 chunk_id = doc.metadata.get('chunk_id', 'N/A')
                 print(f"  Chunk {chunk_id} (Doc {i+1}): '{doc.page_content[:250]}...'")
         else:
             print("\n--- No source documents were retrieved for this question. ---")
-        # --- END OF NEW CODE ---
 
         print(f"LLM Answer (Chat): {answer}")
 
@@ -111,7 +106,6 @@ def chat_with_video(user_message, chat_history, vector_index, qa_chain):
     return chat_history, vector_index, qa_chain
 
 
-# --- UI LAYOUT (REPLACE THE ENTIRE 'with gr.Blocks()' SECTION WITH THIS) ---
 with gr.Blocks(theme=gr.themes.Soft()) as demo:
     gr.Markdown("# 🎥 YouTube AI Companion")
     gr.Markdown("Enter a YouTube URL to get a summary, key takeaways, and ask questions about the video.")
@@ -130,11 +124,10 @@ with gr.Blocks(theme=gr.themes.Soft()) as demo:
             bullets_box = gr.Textbox(label="Key Points", lines=8, interactive=False, elem_classes="output_box")
     
     with gr.Tab("Q&A Chat"):
-        # UPDATED: This format removes the warning.
         chatbot = gr.Chatbot(
             label="Chat with Video",
             height=450,
-            bubble_full_width=False # This parameter is fine here
+            bubble_full_width=False
         )
         user_msg = gr.Textbox(
             placeholder="Ask a question about the video…", 
@@ -153,8 +146,6 @@ with gr.Blocks(theme=gr.themes.Soft()) as demo:
         outputs=[summary_box, bullets_box, chatbot, state_index, state_chain],
         show_progress="full"
     )
-    
-    # UPDATED: The submit function for the new chatbot format
     user_msg.submit(
         fn=chat_with_video,
         inputs=[user_msg, chatbot, state_index, state_chain],
