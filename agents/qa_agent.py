@@ -42,7 +42,7 @@ def get_qa_chain(vector_store):
     # Initialize Groq LLM
     llm = ChatGroq(
         model="meta-llama/llama-4-maverick-17b-128e-instruct",
-        temperature=0.0,
+        temperature=0.5,
         max_tokens=1024
     )
     
