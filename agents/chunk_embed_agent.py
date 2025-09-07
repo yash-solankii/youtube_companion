@@ -1,42 +1,82 @@
-# agents/chunk_embed_agent.py
-from langchain_community.vectorstores import FAISS
-from langchain_huggingface import HuggingFaceEmbeddings
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.schema import Document
-from langchain.text_splitter import CharacterTextSplitter
-import torch
-import gradio as gr
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_community.vectorstores import FAISS
+from typing import List, Optional, Any
 
+from config import config
+from utils.logger import get_logger, timer
+from utils.cache import cache_embeddings, get_cached_embeddings
 
-def embed_transcript(transcript_utterances: list[str]):
-    print("--- embed_transcript (for Q&A) CALLED ---")
-    if not transcript_utterances or not any(s.strip() for s in transcript_utterances):
-        gr.Warning("Embedder: Received empty raw transcript utterances.")
-        return None
+logger = get_logger("chunk_embed_agent")
 
-    # Combine utterances into a single text blob for coherent splitting
-    full_text = "\n".join([u.strip() for u in transcript_utterances if u.strip()])
+class ChunkEmbedAgent:
+    """Simple chunk embedding agent for processing video transcripts"""
+    
+    def __init__(self):
+        # Text splitter for breaking up long content
+        self.text_splitter = RecursiveCharacterTextSplitter(
+            chunk_size=config.CHUNK_SIZE,
+            chunk_overlap=config.CHUNK_OVERLAP,
+            length_function=len
+        )
+        
+        # Embeddings model
+        self.embeddings_model = HuggingFaceEmbeddings(
+            model_name="BAAI/bge-base-en-v1.5",
+            model_kwargs={'device': 'cpu'},
+            encode_kwargs={'normalize_embeddings': True}
+        )
+    
+    def embed_transcript_intelligently(self, transcript: List[str], video_url: str = None):
+        """Create embeddings for video transcript"""
+        timer.start("embed_transcript")
+        logger.info("Creating embeddings for transcript")
+        
+        if not transcript:
+            logger.warning("Empty transcript provided")
+            return None
+        
+        try:
+            # Check cache first
+            if video_url:
+                cached = get_cached_embeddings(video_url)
+                if cached:
+                    logger.info("Retrieved embeddings from cache")
+                    timer.end("embed_transcript", {"source": "cache"})
+                    return cached
+            
+            # Join transcript and create chunks
+            full_text = "\n".join(transcript)
+            text_chunks = self.text_splitter.split_text(full_text)
+            
+            # Convert to documents
+            documents = []
+            for i, chunk in enumerate(text_chunks):
+                doc = Document(
+                    page_content=chunk,
+                    metadata={'chunk_id': i, 'source': 'youtube_transcript'}
+                )
+                documents.append(doc)
+            
+            # Create vector store
+            logger.info(f"Creating embeddings for {len(documents)} chunks")
+            vector_store = FAISS.from_documents(documents, self.embeddings_model)
+            
+            # Save to cache
+            if video_url:
+                cache_embeddings(video_url, vector_store)
+                logger.info("Embeddings cached")
+            
+            logger.info(f"Embeddings created: {len(documents)} chunks")
+            timer.end("embed_transcript", {"chunks": len(documents)})
+            
+            return vector_store
+            
+        except Exception as e:
+            logger.error(f"Error creating embeddings: {e}")
+            timer.end("embed_transcript", {"error": str(e)})
+            return None
 
-    # Character-based splitting: ~1000 chars per chunk with 200-char overlap
-    splitter = CharacterTextSplitter(
-        separator="\n",
-        chunk_size=1000,
-        chunk_overlap=200
-    )
-    chunks = splitter.split_text(full_text)
-
-    docs_to_embed = []
-    for idx, chunk in enumerate(chunks):
-        docs_to_embed.append(Document(page_content=chunk, metadata={"chunk_id": idx}))
-    print(f"Embedder: Prepared {len(docs_to_embed)} chunks for embedding.")
-
-    # Initialize the embedder
-    model_name = "BAAI/bge-base-en-v1.5"
-    embedder = HuggingFaceEmbeddings(
-        model_name=model_name,
-        model_kwargs={"device": "cpu"},
-        encode_kwargs={}
-    )
-    print(f"Embedder: Embedding {len(docs_to_embed)} chunks...")
-    vectorstore = FAISS.from_documents(docs_to_embed, embedder)
-    print("Embedder: Q&A Vector store created successfully.")
-    return vectorstore
+# Create global instance
+chunk_embed_agent = ChunkEmbedAgent()

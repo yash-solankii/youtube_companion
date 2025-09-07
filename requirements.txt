@@ -1,21 +1,12 @@
-# Core AI and Orchestration
-langchain==0.2.6
-langchain-community==0.2.6
-langchain-groq==0.1.6
-langchain-huggingface==0.0.3
-
-# LLM and Embedding Models
-torch==2.3.1
-sentence-transformers==3.0.1
-
-# Vector Database
-# Use faiss-cpu for systems without a dedicated NVIDIA GPU.
-# If you have a CUDA-enabled GPU, you can replace this with faiss-gpu.
-faiss-cpu==1.8.0
-
-# Web Interface
-gradio==4.39.0
-
-# Utility and API Wrappers
-python-dotenv==1.0.1
-youtube-transcript-api==0.6.2
+gradio>=4.0.0
+transformers>=4.30.0
+torch>=2.0.0
+youtube-transcript-api>=0.6.0
+langchain>=0.1.0
+langchain-community>=0.0.10
+langchain-groq>=0.0.1
+python-dotenv>=1.0.0
+faiss-cpu>=1.7.4
+sentence-transformers>=2.2.2
+huggingface-hub>=0.16.0
+numpy>=1.21.0
